@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     tools {
-        nodejs "NodeJS"  // Make sure this matches your Jenkins configuration
+        nodejs "NodeJS"
     }
     
     stages {
@@ -21,12 +21,12 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    // Only run tests if they exist
-                    def hasTests = sh(script: 'grep "test" package.json', returnStatus: true) == 0
-                    if (hasTests) {
+                    // Check if test script exists and isn't the default error message
+                    def testScript = sh(script: 'npm run | grep "test"', returnStdout: true).trim()
+                    if (testScript && !testScript.contains('Error: no test specified')) {
                         sh 'npm test'
                     } else {
-                        echo 'No tests configured, skipping test stage'
+                        echo 'No valid tests configured, skipping test execution'
                     }
                 }
             }
@@ -49,7 +49,7 @@ pipeline {
             }
             steps {
                 script {
-                    sh 'docker-compose down || true'  // Ignore errors if not running
+                    sh 'docker-compose down || true'
                     sh 'docker-compose up -d'
                 }
             }
