@@ -1,84 +1,86 @@
 pipeline {
     agent any
-    
+
     tools {
-        nodejs "NodeJS"
+        nodejs "NodeJS" // Ensure this is configured in Jenkins under "Global Tool Configuration"
     }
-    
+
     environment {
-        // Set your Docker image name
         DOCKER_IMAGE = "jenkins-app"
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        
+
         stage('Install Dependencies') {
             steps {
                 sh 'npm install'
             }
         }
-        
+
         stage('Test') {
             steps {
                 script {
-                    def testScript = sh(script: 'npm run | grep "test"', returnStdout: true).trim()
-                    if (testScript && !testScript.contains('Error: no test specified')) {
+                    def hasTestScript = sh(
+                        script: "node -e \"console.log(require('./package.json').scripts.test || '')\"",
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (hasTestScript && !hasTestScript.contains("no test specified")) {
+                        echo "Running tests..."
                         sh 'npm test'
                     } else {
-                        echo 'No valid tests configured, skipping test execution'
+                        echo 'No valid test script configured in package.json, skipping tests.'
                     }
                 }
             }
         }
-        
+
         stage('Build Docker Image') {
             when {
                 expression { return !currentBuild.resultIsWorseOrEqualTo('FAILURE') }
             }
             steps {
                 script {
-                    // Check if Docker is available
-                    def dockerAvailable = sh(script: 'which docker || true', returnStatus: true)
+                    def dockerAvailable = sh(script: 'which docker', returnStatus: true)
                     if (dockerAvailable == 0) {
-                        docker.build("${env.DOCKER_IMAGE}:${env.BUILD_ID}")
+                        echo "Docker found. Building image..."
+                        sh "docker build -t ${env.DOCKER_IMAGE}:${env.BUILD_ID} ."
                     } else {
-                        echo 'Docker not available, skipping Docker build'
+                        echo 'Docker is not available in this environment. Skipping Docker image build.'
                         currentBuild.result = 'UNSTABLE'
                     }
                 }
             }
         }
-        
+
         stage('Deploy') {
             when {
                 expression { return !currentBuild.resultIsWorseOrEqualTo('FAILURE') }
             }
             steps {
-                script {
-                    echo 'Deployment would happen here'
-                    // Actual deployment commands would go here
-                }
+                echo 'Deployment would happen here.'
+                // Insert deployment logic (e.g., kubectl, SSH, etc.)
             }
         }
     }
-    
+
     post {
         always {
             cleanWs()
         }
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed!'
+            echo '❌ Pipeline failed!'
         }
         unstable {
-            echo 'Pipeline completed with warnings'
+            echo '⚠️ Pipeline completed with warnings (e.g., Docker not found)'
         }
     }
 }
