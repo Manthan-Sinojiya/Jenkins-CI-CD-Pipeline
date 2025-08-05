@@ -1,10 +1,14 @@
 pipeline {
     agent any
+    tools {
+        nodejs "NodeJS"  // Must match the name you configured
+    }
     
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'master', url: 'https://github.com/Manthan-Sinojiya/Jenkins-CI-CD-Pipeline.git'
+                git branch: 'master', 
+                url: 'https://github.com/Manthan-Sinojiya/Jenkins-CI-CD-Pipeline.git'
             }
         }
         
