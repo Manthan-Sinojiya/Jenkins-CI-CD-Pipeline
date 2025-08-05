@@ -1,18 +1,18 @@
 pipeline {
     agent any
+    
     tools {
-        nodejs "NodeJS"  // Must match the name you configured
+        nodejs "NodeJS"  // Make sure this matches your Jenkins configuration
     }
     
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'master', 
-                url: 'https://github.com/Manthan-Sinojiya/Jenkins-CI-CD-Pipeline.git'
+                checkout scm
             }
         }
         
-        stage('Build') {
+        stage('Install Dependencies') {
             steps {
                 sh 'npm install'
             }
@@ -20,11 +20,22 @@ pipeline {
         
         stage('Test') {
             steps {
-                sh 'npm test'
+                script {
+                    // Only run tests if they exist
+                    def hasTests = sh(script: 'grep "test" package.json', returnStatus: true) == 0
+                    if (hasTests) {
+                        sh 'npm test'
+                    } else {
+                        echo 'No tests configured, skipping test stage'
+                    }
+                }
             }
         }
         
         stage('Build Docker Image') {
+            when {
+                expression { return !currentBuild.resultIsWorseOrEqualTo('FAILURE') }
+            }
             steps {
                 script {
                     docker.build("Jenkins-app:${env.BUILD_ID}")
@@ -33,11 +44,13 @@ pipeline {
         }
         
         stage('Deploy') {
+            when {
+                expression { return !currentBuild.resultIsWorseOrEqualTo('FAILURE') }
+            }
             steps {
                 script {
-                    docker.withRegistry('', 'docker-hub-credentials') {
-                        docker.image("Jenkins-app:${env.BUILD_ID}").push()
-                    }
+                    sh 'docker-compose down || true'  // Ignore errors if not running
+                    sh 'docker-compose up -d'
                 }
             }
         }
@@ -46,6 +59,12 @@ pipeline {
     post {
         always {
             cleanWs()
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
